@@ -53,7 +53,7 @@ config = EasyDict({
     "lr_max": 0.01, # 请尝试修改以提升精度
     "decay_type": 'constant', # 请尝试修改以提升精度
     "momentum": 0.8, # 请尝试修改以提升精度
-    "weight_decay": 3.0, # 请尝试修改以提升精度
+    "weight_decay": 0.0001, # 请尝试修改以提升精度
     "dataset_path": "./datasets/5fbdf571c06d3433df85ac65-momodel/garbage_26x100",
     "features_path": "./results/garbage_26x100_features", # 临时目录，保存冻结层Feature Map，可随时删除
     "class_index": index,
@@ -178,7 +178,7 @@ class MobileNetV2Head(nn.Cell):
         else:
             self.flatten = nn.Flatten()
             input_channel = input_channel * hw * hw
-        self.dense = nn.Dense(input_channel, num_classes, weight_init='ones', has_bias=False)
+        self.dense = nn.Dense(input_channel, num_classes, has_bias=True)
         if activation == "Sigmoid":
             self.activation = nn.Sigmoid()
         elif activation == "Softmax":
@@ -195,7 +195,7 @@ class MobileNetV2Head(nn.Cell):
 
 def train_head():
     train_dataset = create_dataset(config=config)
-    eval_dataset = create_dataset(config=config)
+    eval_dataset = create_dataset(config=config, training=False)
     step_size = train_dataset.get_dataset_size()
 
     backbone = MobileNetV2Backbone()
