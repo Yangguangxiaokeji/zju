@@ -9,6 +9,7 @@ import numpy as np
 import os
 import cv2
 import random
+import sys
 import time
 from matplotlib import pyplot as plt
 from easydict import EasyDict
@@ -21,6 +22,13 @@ from mindspore import Tensor
 from mindspore.train.model import Model
 from mindspore.train.serialization import load_checkpoint, save_checkpoint, export
 from mindspore.train.callback import Callback, LossMonitor, ModelCheckpoint, CheckpointConfig
+
+_base = os.path.dirname(os.path.abspath(__file__))
+_candidates = [_base, os.path.dirname(_base), os.getcwd(), os.path.dirname(os.getcwd())]
+PROJECT_ROOT = next((c for c in _candidates if os.path.isdir(os.path.join(c, 'src_mindspore'))), _base)
+os.chdir(PROJECT_ROOT)
+sys.path.insert(0, PROJECT_ROOT)
+print('project root:', PROJECT_ROOT)
 
 from src_mindspore.dataset import create_dataset # 数据处理脚本
 from src_mindspore.mobilenetv2 import MobileNetV2Backbone, MobileNetV2Head, mobilenet_v2 # 模型定义脚本
