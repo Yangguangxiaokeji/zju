@@ -9,7 +9,6 @@ import numpy as np
 import os
 import cv2
 import random
-import shutil
 import time
 from matplotlib import pyplot as plt
 from easydict import EasyDict
@@ -59,6 +58,7 @@ config = EasyDict({
     "class_index": index,
     "save_ckpt_epochs": 1,
     "save_ckpt_path": './results/ckpt_mobilenetv2',
+    "curve_path": './results/training_curve.png',
     "pretrained_ckpt": './src_mindspore/mobilenetv2-200_1067_cpu_gpu.ckpt',
     "export_path": './results/mobilenetv2.mindir'
 
@@ -215,7 +215,8 @@ def train_head():
     train_step.set_train()
 
     # train
-    history = list()
+    history = {'train_loss': [], 'val_loss': [], 'val_acc': []}
+    eval_model = Model(network, loss, metrics={'acc', 'loss'})
     features_path = config.features_path
     idx_list = list(range(step_size))
     for epoch in range(config.epochs):
@@ -228,26 +229,50 @@ def train_head():
             losses.append(train_step(feature, label).asnumpy())
         epoch_seconds = (time.time() - epoch_start)
         epoch_loss = np.mean(np.array(losses))
+        history['train_loss'].append(epoch_loss)
 
-        history.append(epoch_loss)
-        print("epoch: {}, time cost: {}, avg loss: {}".format(epoch + 1, epoch_seconds, epoch_loss))
+        val_result = eval_model.eval(eval_dataset, dataset_sink_mode=False)
+        history['val_loss'].append(val_result['loss'])
+        history['val_acc'].append(val_result['acc'])
+
+        print("epoch: {}, time cost: {}, train loss: {}, val acc: {}, val loss: {}".format(
+            epoch + 1, epoch_seconds, epoch_loss, val_result['acc'], val_result['loss']))
         if (epoch + 1) % config.save_ckpt_epochs == 0:
             save_checkpoint(network, os.path.join(config.save_ckpt_path, f"mobilenetv2-{epoch+1}.ckpt"))
 
-    # evaluate
-    print('validating the model...')
-    eval_model = Model(network, loss, metrics={'acc', 'loss'})
-    acc = eval_model.eval(eval_dataset, dataset_sink_mode=False)
-    print(acc)
+    # plot curves
+    plt.switch_backend('Agg')
+    epochs_range = range(1, config.epochs + 1)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    ax1.plot(epochs_range, history['train_loss'], label='train loss')
+    ax1.plot(epochs_range, history['val_loss'], label='val loss')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Loss')
+    ax1.set_title('Loss curve')
+    ax1.legend()
+    ax2.plot(epochs_range, history['val_acc'], label='val acc', color='green')
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Accuracy (%)')
+    ax2.set_title('Validation accuracy')
+    ax2.legend()
+    plt.savefig(config.curve_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
 
-    return history
+    best_epoch = int(np.argmax(history['val_acc'])) + 1
+    print("curve saved to", config.curve_path)
+    print("best epoch: {}, best val acc: {}".format(best_epoch, max(history['val_acc'])))
 
-if os.path.exists(config.save_ckpt_path):
-    shutil.rmtree(config.save_ckpt_path)
+    return history, best_epoch
+
+run_ts = time.strftime('-%Y%m%d-%H%M%S')
+config.save_ckpt_path += run_ts
+curve_base, curve_ext = os.path.splitext(config.curve_path)
+config.curve_path = curve_base + run_ts + curve_ext
 os.makedirs(config.save_ckpt_path)
+print("checkpoints will be saved to", config.save_ckpt_path)
 
-history = train_head()
+history, best_epoch = train_head()
 
-CKPT = f'mobilenetv2-{config.epochs}.ckpt'
+CKPT = f'mobilenetv2-{best_epoch}.ckpt'
 print("Chosen checkpoint is", CKPT)
 print('training is ok!!!')
