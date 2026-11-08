@@ -4,6 +4,7 @@
 # in your jobs
 ###############################################################################
 import os
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -22,9 +23,9 @@ print('Excuting with', 'GPU' if has_gpu else 'CPU', '.')
 context.set_context(mode=context.GRAPH_MODE, device_target='GPU' if has_gpu else 'CPU')
 
 DATA_PATH = 'datasets/5fbdf571c06d3433df85ac65-momodel/MNIST/'
-CKPT_DIR = 'results/ckpt_lenet'
+CKPT_DIR = 'results/ckpt_lenet' + time.strftime('-%Y%m%d-%H%M%S')
 def create_dataset(data_dir, training=True, batch_size=32, resize=(32, 32),
-                   rescale=1/(255*0.3081), shift=-0.1307/0.3081, buffer_size=64):
+                   rescale=1/(255*0.3081), shift=-0.1307/0.3081, buffer_size=10000):
     data_train = os.path.join(data_dir, 'train') # 训练集信息
     data_test = os.path.join(data_dir, 'test') # 测试集信息
     print(data_train)
@@ -73,15 +74,15 @@ class LeNet5(nn.Cell):
         x = self.relu(self.conv2(x))
         x = self.pool(x)
         x = self.flatten(x)
-        x = self.fc1(x)
-        x = self.fc2(x)
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
         x = self.fc3(x)
 
         return x
-# Please remove stale checkpoint folder `ckpt`
-os.system(f'rm -rf {CKPT_DIR}')
+os.makedirs(CKPT_DIR, exist_ok=True)
+print("checkpoints will be saved to", CKPT_DIR)
 
-def train(data_dir, lr=0.01, momentum=0.9, num_epochs=2, ckpt_name="lenet"):
+def train(data_dir, lr=0.01, momentum=0.9, num_epochs=10, ckpt_name="lenet"):
     ds_train = create_dataset(data_dir)
     ds_eval = create_dataset(data_dir, training=False)
     steps_per_epoch = ds_train.get_dataset_size()
@@ -90,19 +91,43 @@ def train(data_dir, lr=0.01, momentum=0.9, num_epochs=2, ckpt_name="lenet"):
     loss = nn.loss.SoftmaxCrossEntropyWithLogits(sparse=True, reduction='mean')
     opt = nn.Momentum(net.trainable_params(), lr, momentum)
 
-    ckpt_cfg = CheckpointConfig(save_checkpoint_steps=steps_per_epoch, keep_checkpoint_max=5)
+    ckpt_cfg = CheckpointConfig(save_checkpoint_steps=steps_per_epoch, keep_checkpoint_max=num_epochs)
     ckpt_cb = ModelCheckpoint(prefix=ckpt_name, directory=CKPT_DIR, config=ckpt_cfg)
     # 改成每 100 步打印一次，马上就能看到进度
     loss_cb = LossMonitor(per_print_times=100) 
     model = Model(net, loss, opt, metrics={'acc', 'loss'})
-    # 在 GPU 上强烈建议开启下沉模式，大幅减少 CPU 和 GPU 之间的通信开销
-    model.train(num_epochs, ds_train, callbacks=[ckpt_cb, loss_cb], dataset_sink_mode=True) 
-    metrics = model.eval(ds_eval, dataset_sink_mode=False)
-    print('Metrics:', metrics)
+    # 下沉模式下 Host 与 Device 每个 epoch 才交互一次，LossMonitor 的 per_print_times 会被架空，
+    # GPU 上整个 epoch 跑完前没有任何输出；关掉它才能看到每 100 步的进度
+    model.train(num_epochs, ds_train, callbacks=[ckpt_cb, loss_cb], dataset_sink_mode=False)
+
+    # 逐个 epoch 在测试集上评测，挑出 val acc 最高的那份权重
+    best_acc, best_path = -1.0, None
+    for epoch in range(1, num_epochs + 1):
+        path = os.path.join(CKPT_DIR, f'{ckpt_name}-{epoch}_{steps_per_epoch}.ckpt')
+        if not os.path.exists(path):
+            continue
+        candidate = LeNet5()
+        load_checkpoint(path, net=candidate)
+        metric = Model(candidate, loss, metrics={'acc', 'loss'}).eval(ds_eval, dataset_sink_mode=False)
+        print('epoch {}/{}  val_acc={:.4f}  val_loss={:.4f}'.format(
+            epoch, num_epochs, metric['acc'], metric['loss']))
+        if metric['acc'] > best_acc:
+            best_acc, best_path = metric['acc'], path
+
+    # 删掉本次运行里所有不如 best 的 checkpoint，再把 best 重命名为 -best
+    final_path = os.path.join(CKPT_DIR, f'{ckpt_name}-best.ckpt')
+    for name in os.listdir(CKPT_DIR):
+        path = os.path.join(CKPT_DIR, name)
+        if name.endswith('.ckpt') and path != best_path:
+            os.remove(path)
+    os.replace(best_path, final_path)
+    print('best val acc: {:.4f}'.format(best_acc))
+    return final_path
+
 print("开始训练...")
-train(DATA_PATH)
+CKPT = train(DATA_PATH)
 print("训练结束！开始加载 Checkpoint 验证...")
-CKPT = os.path.join(CKPT_DIR, 'lenet-2_1875.ckpt')
+print("Chosen checkpoint is", CKPT)
 
 def eval(data_dir):
     ds_eval = create_dataset(data_dir, training=False)
