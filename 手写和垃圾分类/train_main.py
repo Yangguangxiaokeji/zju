@@ -272,10 +272,48 @@ def train_head():
 
     return history, best_epoch
 
+
+def append_training_record(config, history, best_epoch, checkpoint_name, run_ts):
+    """追加本次训练配置、权重目录和曲线，不覆盖历史记录。"""
+    results_dir = os.path.join(PROJECT_ROOT, 'results')
+    os.makedirs(results_dir, exist_ok=True)
+    trace_path = os.path.join(results_dir, '训练轨迹.md')
+    checkpoint_dir = os.path.relpath(config.save_ckpt_path, results_dir).replace(os.sep, '/')
+    checkpoint_path = checkpoint_dir + '/' + checkpoint_name
+    curve_path = os.path.relpath(config.curve_path, results_dir).replace(os.sep, '/')
+    if os.path.isfile(os.path.join(config.save_ckpt_path, checkpoint_name)):
+        checkpoint_record = '- 选择的 checkpoint：[{}]({})'.format(checkpoint_name, checkpoint_path)
+    else:
+        checkpoint_record = '- 选择的 checkpoint：`{}`（权重文件不存在，请核对保存间隔 `save_ckpt_epochs={}`）'.format(
+            checkpoint_name, config.save_ckpt_epochs)
+    lines = [
+        '\n\n## 训练记录 {}'.format(run_ts.lstrip('-')),
+        '',
+        '- checkpoint 文件夹：[{}]({}/)'.format(checkpoint_dir, checkpoint_dir),
+        checkpoint_record,
+        '- 最佳轮次：{}'.format(best_epoch),
+        '- 最佳验证准确率：{:.6f}'.format(float(history['val_acc'][best_epoch - 1])),
+        '- 对应验证损失：{:.6f}'.format(float(history['val_loss'][best_epoch - 1])),
+        '',
+        '| 超参数 / 配置 | 本次取值 |',
+        '| --- | --- |',
+    ]
+    for name, value in config.items():
+        if name != 'class_index':
+            value_text = str(value).replace('|', '\\|').replace('\n', ' ')
+            lines.append('| `{}` | `{}` |'.format(name, value_text))
+    lines.extend(['', '![本次训练 loss 与验证准确率曲线]({})'.format(curve_path), ''])
+    needs_header = not os.path.exists(trace_path) or os.path.getsize(trace_path) == 0
+    with open(trace_path, 'a', encoding='utf-8', errors='strict', newline='\n') as output:
+        if needs_header:
+            output.write('# 训练轨迹\n\n记录 train_main.py 每次成功训练的超参数、checkpoint 文件夹、验证结果和训练曲线。新记录追加到文件末尾。\n')
+        output.write('\n'.join(lines))
+    return trace_path
+
+
 run_ts = time.strftime('-%Y%m%d-%H%M%S')
 config.save_ckpt_path += run_ts
-curve_base, curve_ext = os.path.splitext(config.curve_path)
-config.curve_path = curve_base + run_ts + curve_ext
+config.curve_path = os.path.join(config.save_ckpt_path, os.path.basename(config.curve_path))
 os.makedirs(config.save_ckpt_path)
 print("checkpoints will be saved to", config.save_ckpt_path)
 
@@ -283,4 +321,6 @@ history, best_epoch = train_head()
 
 CKPT = f'mobilenetv2-{best_epoch}.ckpt'
 print("Chosen checkpoint is", CKPT)
+trace_path = append_training_record(config, history, best_epoch, CKPT, run_ts)
+print("training record saved to", trace_path)
 print('training is ok!!!')
