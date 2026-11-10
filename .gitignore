@@ -1,0 +1,15 @@
+# JetBrains IDE 本地配置
+.idea/
+*.iml
+
+# Qoder / AI 工具本地配置（含本机绝对路径）
+.qoder/
+
+# Python 环境与缓存
+.venv*/
+__pycache__/
+*.py[cod]
+
+# 数据与训练产物
+datasets/
+results/
