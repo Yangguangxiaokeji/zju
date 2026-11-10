@@ -83,7 +83,7 @@ backbone = MobileNetV2Backbone()
 head = MobileNetV2Head(input_channel=backbone.out_channels, num_classes=config.num_classes, reduction=config.reduction)
 network = mobilenet_v2(backbone, head)
 
-model_path = './results/ckpt_mobilenetv2-20261106-163708/mobilenetv2-9.ckpt'
+model_path = './results/ckpt_mobilenetv2-20261109-153207/mobilenetv2-5.ckpt'
 load_checkpoint(model_path, net=network)
 
 

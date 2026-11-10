@@ -21,7 +21,7 @@
 # 使用方法（云端离线任务）：
 #   1. 新建【GPU】离线任务（全网微调含 backbone 前向+反向，CPU 容器会非常慢），
 #      勾选：train_main_all.py、src_mindspore/、datasets/，
-#      以及 stage-1 最佳权重 results/ckpt_mobilenetv2-20261106-163708/mobilenetv2-9.ckpt
+#      以及 stage-1 最佳权重 results/ckpt_mobilenetv2-20261109-153207/mobilenetv2-5.ckpt
 #      （若勾选界面无法展开 results 勾选单个文件，则先把该 ckpt 复制到项目根目录
 #        改名 stage1_best.ckpt，并把下方 config.stage1_ckpt 改成 './stage1_best.ckpt'；
 #        不要勾选整个 results 目录，历史 ckpt 与特征缓存太大）；
@@ -92,7 +92,7 @@ config = EasyDict({
     "weight_decay": 0.0001,
     "class_index": index,
     "dataset_path": "./datasets/5fbdf571c06d3433df85ac65-momodel/garbage_26x100",
-    "stage1_ckpt": './results/ckpt_mobilenetv2-20261106-163708/mobilenetv2-9.ckpt',  # stage-1 最佳权重，需在离线任务中勾选该文件（或复制到根目录改名 stage1_best.ckpt 后改此路径）
+    "stage1_ckpt": './results/ckpt_mobilenetv2-20261109-153207/mobilenetv2-5.ckpt',  # stage-1 最佳权重，需在离线任务中勾选该文件（或复制到根目录改名 stage1_best.ckpt 后改此路径）
     "save_ckpt_path": './results/ckpt_mobilenetv2_all',
     "curve_path": './results/training_curve_all.png',
 })
