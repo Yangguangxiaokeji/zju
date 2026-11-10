@@ -83,7 +83,7 @@ backbone = MobileNetV2Backbone()
 head = MobileNetV2Head(input_channel=backbone.out_channels, num_classes=config.num_classes, reduction=config.reduction)
 network = mobilenet_v2(backbone, head)
 
-model_path = './results/ckpt_mobilenetv2-20261109-153207/mobilenetv2-5.ckpt'
+model_path = './results/ckpt_mobilenetv2_all_uniform_lr-20261109-172445/mobilenetv2_all-4.ckpt'
 load_checkpoint(model_path, net=network)
 
 
@@ -111,7 +111,8 @@ def predict(image):
     :return: string, 模型识别图片的类别,
             包含 'Plastic Bottle','Hats','Newspaper','Cans'等共 26 个类别
     """
-    image = cv2.resize(image, (config.image_height, config.image_width))
+    image = cv2.resize(image, (256, 256))
+    image = image[16:240, 16:240]
     image = image_process(image)
 
     logits = network(image)
